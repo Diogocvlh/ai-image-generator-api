@@ -16,6 +16,8 @@ htmlcov/
 
 # Dados de execução e pesos de modelos
 outputs/
+/modelo_final_*.png
+/resultado_*.png
 *.db
 *.sqlite
 *.sqlite3

@@ -1,8 +1,10 @@
 # AI Image Generator API
 
+[![Verificação estática Python](https://github.com/Diogocvlh/ai-image-generator-api/actions/workflows/python-checks.yml/badge.svg?branch=main)](https://github.com/Diogocvlh/ai-image-generator-api/actions/workflows/python-checks.yml)
+
 API experimental em Python para gerar imagens a partir de descrições de texto. O projeto integra FastAPI, PyTorch e Diffusers em uma execução local com GPU NVIDIA.
 
-**Estado:** protótipo de portfólio. A documentação e a sintaxe foram revisadas; a inferência em GPU não foi validada nesta revisão. O projeto não é um serviço de produção.
+**Estado:** protótipo de portfólio. A documentação e a sintaxe foram revisadas; a CI verifica apenas a sintaxe, sem carregar o modelo; a inferência em GPU não foi validada nesta revisão. O projeto não é um serviço de produção.
 
 ## O que está implementado
 

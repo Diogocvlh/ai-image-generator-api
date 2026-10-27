@@ -1,0 +1,20 @@
+name: Verificação estática Python
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verificar sintaxe sem carregar modelo ou acessar GPU
+        run: python -m compileall -q main.py database.py
