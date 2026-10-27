@@ -1,26 +1,38 @@
 import os
+import logging
+import secrets
 import uuid
 import torch
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
+from dotenv import load_dotenv
 import uvicorn
 
 # ======================================
 # ⚙️ CONFIGURAÇÕES GERAIS
 # ======================================
 
-API_KEY = "SUA_CHAVE_SECRETA_AQUI"
+load_dotenv()
+
+API_KEY = os.environ.get("API_KEY", "").strip()
+if len(API_KEY) < 32 or API_KEY == "SUA_CHAVE_SECRETA_AQUI":
+    raise RuntimeError("Configure API_KEY com uma chave aleatória de pelo menos 32 caracteres.")
+
 MODEL_ID = "SG161222/Realistic_Vision_V6.0_B1_noVAE"
 MAX_WIDTH = 768
 MAX_HEIGHT = 768
 MAX_STEPS = 60
+logger = logging.getLogger(__name__)
+
+if not torch.cuda.is_available():
+    raise RuntimeError("Esta versão exige uma GPU NVIDIA e uma instalação do PyTorch com CUDA.")
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.benchmark = True
 
-app = FastAPI(title="AI Image Generator PRO")
+app = FastAPI(title="AI Image Generator API", version="0.1.0")
 
 # ======================================
 # 🚀 CARREGAMENTO DO MODELO
@@ -31,7 +43,6 @@ print("🚀 Carregando modelo...")
 pipe = StableDiffusionPipeline.from_pretrained(
     MODEL_ID,
     torch_dtype=torch.float16,
-    revision="fp16"
 ).to("cuda")
 
 pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
@@ -39,10 +50,8 @@ pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
 pipe.enable_attention_slicing()
 pipe.enable_vae_slicing()
 pipe.enable_vae_tiling()
-pipe.enable_xformers_memory_efficient_attention()
-
-pipe.safety_checker = None
-pipe.requires_safety_checker = False
+if os.environ.get("ENABLE_XFORMERS", "false").lower() == "true":
+    pipe.enable_xformers_memory_efficient_attention()
 
 print("✅ Modelo carregado!")
 
@@ -52,18 +61,18 @@ print("✅ Modelo carregado!")
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=3, max_length=500)
-    width: int = 512
-    height: int = 512
-    steps: int = 40
-    guidance: float = 7.5
-    seed: int | None = None
+    width: int = Field(512, ge=64, le=MAX_WIDTH, multiple_of=8)
+    height: int = Field(512, ge=64, le=MAX_HEIGHT, multiple_of=8)
+    steps: int = Field(40, ge=1, le=MAX_STEPS)
+    guidance: float = Field(7.5, ge=1, le=20, allow_inf_nan=False)
+    seed: int | None = Field(None, ge=0, le=2**63 - 1)
 
 # ======================================
 # 🔐 SEGURANÇA
 # ======================================
 
-def verificar_api_key(x_api_key: str = Header(None)):
-    if x_api_key != API_KEY:
+def verificar_api_key(x_api_key: str | None = Header(None)):
+    if not x_api_key or not secrets.compare_digest(x_api_key.encode(), API_KEY.encode()):
         raise HTTPException(status_code=401, detail="API Key inválida")
 
 # ======================================
@@ -71,16 +80,9 @@ def verificar_api_key(x_api_key: str = Header(None)):
 # ======================================
 
 @app.post("/gerar")
-def gerar_imagem(data: GenerateRequest, x_api_key: str = Header(None)):
+def gerar_imagem(data: GenerateRequest, x_api_key: str | None = Header(None)):
 
     verificar_api_key(x_api_key)
-
-    # 🔒 Validações de segurança
-    if data.width > MAX_WIDTH or data.height > MAX_HEIGHT:
-        raise HTTPException(status_code=400, detail="Resolução muito alta")
-
-    if data.steps > MAX_STEPS:
-        raise HTTPException(status_code=400, detail="Steps muito alto")
 
     try:
         refinamento = (
@@ -132,8 +134,9 @@ def gerar_imagem(data: GenerateRequest, x_api_key: str = Header(None)):
         torch.cuda.empty_cache()
         raise HTTPException(status_code=500, detail="GPU sem memória")
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Falha ao gerar imagem")
+        raise HTTPException(status_code=500, detail="Não foi possível gerar a imagem.")
 
 
 # ======================================
@@ -142,8 +145,8 @@ def gerar_imagem(data: GenerateRequest, x_api_key: str = Header(None)):
 
 if __name__ == "__main__":
     uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
+        app,
+        host="127.0.0.1",
         port=8000,
         reload=False
     )

@@ -1,0 +1,31 @@
+# Ambiente e credenciais locais
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# Cache e ferramentas Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Dados de execução e pesos de modelos
+outputs/
+*.db
+*.sqlite
+*.sqlite3
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+
+# Editor e sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
